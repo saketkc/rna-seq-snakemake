@@ -11,7 +11,10 @@ rule all:
         STAR_INDEX,
         expand('qc/{sample}_R1_001_fastqc.html', sample=SAMPLES),
         expand('qc/{sample}_R2_001_fastqc.html', sample=SAMPLES),
-        expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES)
+        expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES),
+        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
+        expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
 
 
 rule create_index:
@@ -130,3 +133,78 @@ rule count:
         r'''
         source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded=no --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
         '''
+rule format_counts:
+    input: 'mapped/counts_strict/star/{sample}.counts.tsv'
+    output: 'mapped/counts_strict/star/{sample}.counts.noversion.tsv'
+    shell:
+        r'''
+        cat {input} | sed -E 's/\.[0-9]+//' > {output}
+
+        '''
+
+rule run_deseq:
+    input: expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES)
+    output:
+        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+
+    params:
+        basedir = 'mapped/counts_strict/star',
+        inprefix = 'counts.noversion',
+        gene_annotations  = GENE_NAMES,
+        design_file = RAWDATA_DIR + '/exp-design/'+GENOME_BUILD+'_design.txt',
+        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+    shell:
+        r'''
+        Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
+            --gene_annotations={params.gene_annotations} \
+            --design_file={params.design_file} \
+            --outprefix={params.outprefix} \
+            --inprefix={params.inprefix}
+
+        '''
+
+rule run_picardmetrics:
+    input: 'mapped/bams/star/{sample}.bam'
+    output: 'mapped/bam_metrics/{sample}.metrics'
+    shell:
+        r'''
+        picard CollectInsertSizeMetrics I={input} H={output}.insertsize.pdf O={output}
+
+        '''
+
+rule create_insertsize_tsv:
+    input: 'mapped/bam_metrics/{sample}.metrics'
+    output: 'mapped/bam_metrics/{sample}.insertsizes.tsv'
+    shell:
+        r'''
+        python {SRC_DIR}/collect_picard_metrics.py {input} {output}
+
+        '''
+
+rule counts_to_tpm:
+    input:
+        count = expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES),
+        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLES),
+    output: 'mapped/tpm/{sample}.tpm.tsv'
+    params:
+        gene_lengths=GENE_LENGTHS,
+        name=expand('{sample}', sample=SAMPLES),
+        outprefix='mapped/tpm',
+        gene_map=GENE_NAME_MAP
+    run:
+        counts_input = (',').join(input.count)
+        sizes_input = (',').join(input.insert_size)
+        names = (',').join(params.name)
+        shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
+
+rule plot_tpm:
+    input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES)
+    output: expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
+    run:
+        for inp1, inp2 in zip(input, input):
+            inp11 = inp1.split('/')[-1]
+            inp22 = inp2.split('/')[-1]
+            shell('python {SRC_DIR}/plot_tpm_scatter.py {inp1} {inp2} mapped/plots/{inp11}vs{inp22}.scatter')
+
+
