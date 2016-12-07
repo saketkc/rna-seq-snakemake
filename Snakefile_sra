@@ -5,6 +5,13 @@ workdir: OUT_DIR
 
 from itertools import chain
 from os.path import join
+import os
+
+SAMPLES = []
+for path in glob.glob('*.sra'):
+    dir, filename = os.path.split(path)
+    SAMPLES.append(filename)
+
 
 rule all:
     input:
