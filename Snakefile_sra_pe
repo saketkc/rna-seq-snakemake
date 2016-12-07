@@ -1,16 +1,17 @@
 include:
-    'configs/config_GSE29943.py'
+    'configs/config_GSE62129.py'
 
 workdir: OUT_DIR
 
 from itertools import chain
 from os.path import join
 import os
+import glob
 
 SAMPLES = []
-for path in glob.glob('*.sra'):
+for path in glob.glob('{}/*.sra'.format(RAWDATA_DIR)):
     dir, filename = os.path.split(path)
-    SAMPLES.append(filename)
+    SAMPLES.append(filename.replace('.sra',''))
 
 
 rule all:
@@ -19,11 +20,11 @@ rule all:
         expand('qc/{sample}_1_fastqc.html', sample=SAMPLES),
         expand('qc/{sample}_2_fastqc.html', sample=SAMPLES),
         expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES),
-        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
-        expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
-        expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES),
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
+        #expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES),
+        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
 
 rule create_index:
@@ -39,7 +40,7 @@ rule create_index:
             --genomeFastaFiles {input[0]}\
             --sjdbGTFfile {input[1]}'''
 
-rule srat_to_fastq:
+rule sra_to_fastq:
     input: RAWDATA_DIR + '/{sample}.sra'
     output:
         R1='preprocessed/{sample}_1.fastq',
