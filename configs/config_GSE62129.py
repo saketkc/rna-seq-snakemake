@@ -1,6 +1,6 @@
 GENOMES_DIR='/home/cmb-panasas2/skchoudh/genomes'
-OUT_DIR = '/staging/as/skchoudh/rna/GSE62129'
-RAWDATA_DIR ='/home/cmb-06/as/skchoudh/data/public_HuR/GSE62129'
+OUT_DIR = '/staging/as/skchoudh/rna/public_HuR/GSE62129'
+RAWDATA_DIR ='/home/cmb-06/as/skchoudh/dna/public_HuR/GSE62129'
 GENOME_BUILD = 'mm10'
 GENOME_FASTA = GENOMES_DIR + '/' + GENOME_BUILD + '/fasta/'+ GENOME_BUILD+ '.fa'
 SRC_DIR = '/home/cmb-panasas2/skchoudh/github_projects/rna-seq-snakemake/scripts'

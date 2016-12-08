@@ -24,6 +24,7 @@ rule all:
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
         'DE_analysis/de_genes.DESeq2.sig.tsv',
+        expand('mapped/post_mapping_qc/{sample}/report.html', sample=SAMPLES),
         'multiqc_report/report.html'
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
@@ -228,9 +229,9 @@ rule perform_qualimap_qc:
 
 rule run_multiqc:
     input:
-        'mapped/post_mapping_qc/{sample}/report.html',
-        'qc/{sample}_fastqc.html',
-        'mapped/bams/{sample}.bam',
+        expand('mapped/post_mapping_qc/{sample}/report.html', sample=SAMPLES),
+        expand('qc/{sample}_fastqc.html', sample=SAMPLES),
+        expand('mapped/bams/{sample}.bam', sample=SAMPLES)
     output:
         'multiqc_report/report.html'
     shell:
