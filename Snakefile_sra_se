@@ -24,8 +24,8 @@ rule all:
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
         'DE_analysis/de_genes.DESeq2.sig.tsv',
-        expand('mapped/post_mapping_qc/{sample}/report.html', sample=SAMPLES),
-        'multiqc_report/report.html'
+        expand('mapped/post_mapping_qc/{sample}/qualimapReport.html', sample=SAMPLES),
+        'multiqc_report/multiqc_report.html'
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
 
@@ -217,24 +217,24 @@ rule do_de_analysis:
 
 rule perform_qualimap_qc:
     input:  'mapped/bams/{sample}.bam',
-    output: 'mapped/post_mapping_qc/{sample}/report.html',
+    output: 'mapped/post_mapping_qc/{sample}/qualimapReport.html'
     params:
         outdir='mapped/post_mapping_qc/{sample}',
         gtf=GTF
     shell:
         r'''
-        qualimap rnaseq -bam {input} -gtf {params.gtf} -oc {params.outdir}
+        qualimap rnaseq -bam {input} -gtf {params.gtf} --outdir {params.outdir} --java-mem-size=8G
 
         '''
 
 rule run_multiqc:
     input:
-        expand('mapped/post_mapping_qc/{sample}/report.html', sample=SAMPLES),
+        expand('mapped/post_mapping_qc/{sample}/qualimapReport.html', sample=SAMPLES),
         expand('qc/{sample}_fastqc.html', sample=SAMPLES),
         expand('mapped/bams/{sample}.bam', sample=SAMPLES)
     output:
-        'multiqc_report/report.html'
+        'multiqc_report/multiqc_report.html'
     shell:
-        'multiqc --outdir multiqc_report .'
+        'export LC_ALL=en_US.UTF-8 && multiqc --outdir multiqc_report .'
 
 
