@@ -2,7 +2,7 @@ __default__:
     q: 'cmb'
     time: '7:00:00'
     mem: '60000MB'
-    cores: 1
+    cores: 8
     logdir: '/home/cmb-06/as/skchoudh/logs/'
 
 create_index:

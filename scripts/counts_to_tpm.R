@@ -22,7 +22,7 @@ cbind.fill <- function(...) {
   transpoted <- lapply(list(...),t)                                                                                                                                                 
   transpoted_dataframe <- lapply(transpoted, as.data.frame)                                                                                                                         
   return (data.frame(t(rbind.fill(transpoted_dataframe))))                                                                                                                          
-} 
+}
 "Convert counts to TPM
 Usage:
   counts_to_tpm.R --counts=<counts>... --insert_sizes=<insert_sizes>... --gene_lengths=<gene_lengths> --outprefix=<outprefix> --inprefix=<inprefix> --gene_map=<gene_map>

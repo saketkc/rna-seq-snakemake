@@ -10,6 +10,6 @@ GTF = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.vM11.annotati
 GENE_NAMES = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + GENOME_BUILD+'_gene_names_stripped.tsv'
 GENE_LENGTHS = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.vM11.coding_lengths.tsv'  #+ GENOME_BUILD+'_gene_lengths.tsv'
 GENE_NAME_MAP = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + GENOME_BUILD + '_gene_names_stripped.tsv'
-
+DESIGN_FILE = RAWDATA_DIR + '/design.txt'
 
 

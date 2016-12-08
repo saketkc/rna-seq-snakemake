@@ -23,6 +23,7 @@ rule all:
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
+        'DE_analysis/de_genes.DESeq2.sig.tsv'
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
 
@@ -84,7 +85,7 @@ rule map_star:
              --genomeDir {input.index}\
              --outFileNamePrefix {params.prefix} --readFilesIn {input.R1}\
              --outSAMtype BAM SortedByCoordinate\
-             --readFilesCommand zcat\
+             --readFilesCommand cat\
              --outReadsUnmapped {params.unmapped} && mv {params.prefix}Aligned.sortedByCoord.out.bam {output} && mkdir -p {params.starlogs} && mv {params.prefix}Log.final.out {params.prefix}Log.out {params.prefix}Log.progress.out {params.starlogs}
         '''
 
@@ -155,8 +156,8 @@ rule create_insertsize_tsv:
         python {SRC_DIR}/collect_picard_metrics.py {input} {output}
 
         '''
-
-rule counts_to_tpm:
+"""
+rule counts_to_tpm_pe:
     input:
         count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
         insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLES),
@@ -171,6 +172,20 @@ rule counts_to_tpm:
         sizes_input = (',').join(input.insert_size)
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
+"""
+
+rule counts_to_tpm_se:
+    input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
+    output: 'mapped/tpm/{sample}.tpm.tsv'
+    params:
+        gene_lengths=GENE_LENGTHS,
+        name=expand('{sample}', sample=SAMPLES),
+        outprefix='mapped/tpm',
+        gene_map=GENE_NAME_MAP
+    run:
+        counts_input = (',').join(input)
+        names = (',').join(params.name)
+        shell('Rscript {SRC_DIR}/counts_to_tpm_se.R --counts={counts_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 
 rule plot_tpm:
     input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES)
@@ -181,4 +196,19 @@ rule plot_tpm:
             inp22 = inp2.split('/')[-1]
             shell('python {SRC_DIR}/plot_tpm_scatter.py {inp1} {inp2} mapped/plots/{inp11}vs{inp22}.scatter')
 
-
+rule do_de_analysis:
+    input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
+    output: 'DE_analysis/de_genes.DESeq2.sig.tsv'
+    params:
+        basedir='mapped/counts_strict',
+        design_file=DESIGN_FILE,
+        outprefix='DE_analysis/de_genes',
+        gene_annotations=GENE_NAME_MAP,
+        inprefix='counts.noversion'
+    shell:
+        r'''Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
+        --design_file={params.design_file} \
+        --gene_annotations={params.gene_annotations} \
+        --outprefix={params.outprefix} \
+        --inprefix={params.inprefix}
+        '''

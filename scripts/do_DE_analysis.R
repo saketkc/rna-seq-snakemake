@@ -48,7 +48,6 @@ inprefix <- opts[['inprefix']]
 #gene_annotations <- read.table(gene_annotations, row.names = 1, col.names = c('id', 'name', 'type'))
 
 design.info <- read.csv(design_file, header = TRUE, stringsAsFactors=FALSE)
-
 sample_id <- design.info$sample
 files <- paste(sample_id, inprefix, 'tsv', sep='.')
 names(files) <- sample_id
@@ -56,7 +55,6 @@ condition <- design.info$condition
 
 sampleTable <- data.frame(sampleName=sample_id, fileName=files, condition = condition)
 ddsHTSeq <- DESeqDataSetFromHTSeqCount(sampleTable=sampleTable, directory=base_dir, design=~condition)
-
 ## We dont need version numbers
 rownames(ddsHTSeq) <- gsub('\\.[0-9]+', '', rownames(ddsHTSeq))
 ## Filter genes with atleast 2 count
@@ -73,3 +71,5 @@ resSig <- subset(resOrdered, padj < 0.01)
 #row.names(resSig) <- gene_annotations[row.names(resSig),]$name
 write.table(as.data.frame(resSig), paste(outprefix, 'DESeq2', 'sig', 'tsv', sep='.'))
 
+row.names(resSig) <- gene_annotations[row.names(resSig),]$name
+write.table(as.data.frame(resSig), paste(outprefix, 'DESeq2', 'sig', 'names', 'tsv', sep='.'))
