@@ -23,7 +23,8 @@ rule all:
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
-        'DE_analysis/de_genes.DESeq2.sig.tsv'
+        'DE_analysis/de_genes.DESeq2.sig.tsv',
+        'multiqc_report/report.html'
         #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
 
