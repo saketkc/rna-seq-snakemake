@@ -212,3 +212,27 @@ rule do_de_analysis:
         --outprefix={params.outprefix} \
         --inprefix={params.inprefix}
         '''
+
+rule perform_qualimap_qc:
+    input:  'mapped/bams/{sample}.bam',
+    output: 'mapped/post_mapping_qc/{sample}/report.html',
+    params:
+        outdir='mapped/post_mapping_qc/{sample}',
+        gtf=GTF
+    shell:
+        r'''
+        qualimap rnaseq -bam {input} -gtf {params.gtf} -oc {params.outdir}
+
+        '''
+
+rule run_multiqc:
+    input:
+        'mapped/post_mapping_qc/{sample}/report.html',
+        'qc/{sample}_fastqc.html',
+        'mapped/bams/{sample}.bam',
+    output:
+        'multiqc_report/report.html'
+    shell:
+        'multiqc --outdir multiqc_report .'
+
+
