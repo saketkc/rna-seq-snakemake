@@ -176,7 +176,7 @@ rule counts_to_tpm_pe:
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 """
 
-rule counts_to_tpm_se:
+r"""ule counts_to_tpm_se:
     input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
     output: 'mapped/tpm/{sample}.tpm.tsv'
     params:
