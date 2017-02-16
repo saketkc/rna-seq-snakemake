@@ -1,47 +1,52 @@
 include:
-    'config_cluster.py'
+    'configs/config_Penalva_L_01182017.human.py'
 
 workdir: OUT_DIR
 
 from itertools import chain
 from os.path import join
+import glob
+
+SAMPLES = glob.glob('{}**/*.fastq.gz'.format(RAWDATA_DIR), recursive=True)
+#SAMPLE_NAMES = set(map(lambda x: ('_').join(x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[:4]), SAMPLES))
+#LANES = set(map(lambda x: x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[4], SAMPLES))
+SAMPLE_LANE = []
+for sample in SAMPLES:
+    sample = sample.replace('{}/'.format(RAWDATA_DIR),'')
+    sample_split = sample.split('_')
+    sample_name = ('_').join(sample_split)
+    lane_name = sample_split[4]
+    SAMPLE_LANE.append((sample_name, lane_name))
+
+SAMPLE_LANE = set(SAMPLE_LANE)
+
+SAMPLE_NAMES, LANE_NAMES = zip(*SAMPLE_LANE)
 
 rule all:
     input:
         STAR_INDEX,
-        expand('qc/{sample}_R2_001_fastqc.html', sample=SAMPLES),
-        expand('qc/{sample}_R2_001_fastqc.html', sample=SAMPLES),
-        expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES),
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
-        expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
-
-
-rule create_index:
-    input:
-        GENOME_FASTA,
-        GTF
-    output: STAR_INDEX
-    threads: 16
-    shell:
-        r'''mkdir -p {output} && STAR --runThreadN 16\
-            --runMode genomeGenerate \
-            --genomeDir {output} \
-            --genomeFastaFiles {input[0]}\
-            --sjdbGTFfile {input[1]}'''
+        expand('qc/{sample_name}_{lane}_R1_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANES),
+        expand('qc/{sample_name}_{lane}_R2_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANES),
+        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANES),
+        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANES),
+        expand('mapped/bams/star/{sample_name}/{sample_name}_{lane}.bam', zip, sample_name=SAMPLE_NAMES, lane=LANES),
+        #expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES),
+        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        #expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
+        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
 
 
 rule perform_qc:
     input:
-        R1=RAWDATA_DIR+'/{sample}_R1_001.fastq.gz',
-        R2=RAWDATA_DIR+'/{sample}_R2_001.fastq.gz'
+        R1=RAWDATA_DIR+'/{sample_name}_{lane}_R1_001.fastq.gz',
+        R2=RAWDATA_DIR+'/{sample_name}_{lane}_R2_001.fastq.gz'
     params:
         out_dir = 'qc'
     output:
-       'qc/{sample}_R1_001_fastqc.html',
-       'qc/{sample}_R1_001_fastqc.zip',
-       'qc/{sample}_R2_001_fastqc.html',
-       'qc/{sample}_R2_001_fastqc.zip',
+       'qc/{sample_name}_{lane}_R1_001_fastqc.html',
+       'qc/{sample_name}_{lane}_R1_001_fastqc.zip',
+       'qc/{sample_name}_{lane}_R2_001_fastqc.html',
+       'qc/{sample_name}_{lane}_R2_001_fastqc.zip',
     shell:
         r'''
             fastqc -o {params.out_dir} -f fastq {input.R1} {input.R2}
@@ -49,14 +54,14 @@ rule perform_qc:
 
 rule perfom_trimming:
     input:
-        R1=RAWDATA_DIR+'/{sample}_R1_001.fastq.gz',
-        R2=RAWDATA_DIR+'/{sample}_R2_001.fastq.gz'
+        R1=RAWDATA_DIR+'/{sample_name}_{lane}_R1_001.fastq.gz',
+        R2=RAWDATA_DIR+'/{sample_name}_{lane}_R2_001.fastq.gz'
     params:
         out_dir='preprocessed/{sample}',
         phred_cutoff=5
     output:
-        'preprocessed/{sample}/{sample}_R1_001_val_1.fq.gz',
-        'preprocessed/{sample}/{sample}_R2_001_val_2.fq.gz',
+        'preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz',
+        'preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz',
     shell:
         r'''
             trim_galore --paired -o {params.out_dir} -q {params.phred_cutoff} {input.R1} {input.R2}
@@ -65,13 +70,13 @@ rule perfom_trimming:
 
 rule map_starlong:
     input:
-        R1='preprocessed/{sample}/{sample}_R1_001_val_1.fq.gz',
-        R2='preprocessed/{sample}/{sample}_R2_001_val_2.fq.gz',
+        R1='preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz',
+        R2='preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz',
         index=STAR_INDEX
-    output: 'mapped/bams/star/{sample}.bam'
+    output: 'mapped/bams/star/{sample_name}/{sample_name}_{lane}.bam'
     params:
-        prefix = 'mapped/bams/star/{sample}',
-        unmapped = 'unmapped/fastq/star/{sample}',
+        prefix = 'mapped/bams/star/{sample_name}_{lane}',
+        unmapped = 'unmapped/fastq/star/{sample_name}_{lane}',
         starlogs = 'mapped/starlogs'
     threads: 16
     shell:
@@ -92,6 +97,7 @@ rule map_starlong:
             mkdir -p {params.starlogs} && mv {params.prefix}Log.final.out\
             {params.prefix}Log.out {params.prefix}Log.progress.out {params.starlogs}
         '''
+
 rule sort_by_name:
     input: 'mapped/bams/star/{sample}.bam'
     output: 'mapped/bams/star/{sample}.sortedByName.bam'
