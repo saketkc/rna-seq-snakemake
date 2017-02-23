@@ -1,39 +1,46 @@
 include:
-    'configs/config_Penalva_L_01182017.human.py'
+    #'configs/config_Penalva_L_01182017.human.py'
+    'configs/config_Musashi1_Penalva_L_12212016.human.py'
 
 workdir: OUT_DIR
 
 from itertools import chain
 from os.path import join
 import glob
+import re
 
 SAMPLES = glob.glob('{}**/*.fastq.gz'.format(RAWDATA_DIR), recursive=True)
 #SAMPLE_NAMES = set(map(lambda x: ('_').join(x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[:4]), SAMPLES))
-#LANES = set(map(lambda x: x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[4], SAMPLES))
+#LANE_NAMES = set(map(lambda x: x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[4], SAMPLES))
 SAMPLE_LANE = []
 for sample in SAMPLES:
     sample = sample.replace('{}/'.format(RAWDATA_DIR),'')
-    sample_split = sample.split('_')
-    sample_name = ('_').join(sample_split)
-    lane_name = sample_split[4]
+    #sample_split = sample.split('_')
+    #sample_name = ('_').join(sample_split[:4])
+    #lane_name = sample_split[4]
+    sample_name = re.split(r'_L\d\d\d_', sample)[0]
+    lane_name = re.search(r'L\d\d\d', sample).group()
     SAMPLE_LANE.append((sample_name, lane_name))
 
 SAMPLE_LANE = set(SAMPLE_LANE)
-
+SAMPLE_LANE = sorted(SAMPLE_LANE, key=lambda tup: tup[0])
 SAMPLE_NAMES, LANE_NAMES = zip(*SAMPLE_LANE)
 
 rule all:
     input:
         STAR_INDEX,
-        expand('qc/{sample_name}_{lane}_R1_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANES),
-        expand('qc/{sample_name}_{lane}_R2_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANES),
-        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANES),
-        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANES),
-        expand('mapped/bams/star/{sample_name}/{sample_name}_{lane}.bam', zip, sample_name=SAMPLE_NAMES, lane=LANES),
-        #expand('mapped/counts_strict/star/{sample}.counts.tsv', sample=SAMPLES),
-        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        #expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
-        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
+        expand('qc/{sample_name}_{lane}_R1_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('qc/{sample_name}_{lane}_R2_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('mapped/bams/{sample_name}/{sample_name}_{lane}.bam', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('mapped/merged_bams/{sample_name}.bam', sample_name=SAMPLE_NAMES),
+        #expand('mapped/plots/{sample1}_vs_{sample2}.scatter.png', sample1=SAMPLE_NAMES, sample2=SAMPLE_NAMES),
+        'multiqc_report/multiqc_report.html',
+        expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLE_NAMES),
+        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
+        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLE_NAMES)
 
 
 rule perform_qc:
@@ -57,7 +64,7 @@ rule perfom_trimming:
         R1=RAWDATA_DIR+'/{sample_name}_{lane}_R1_001.fastq.gz',
         R2=RAWDATA_DIR+'/{sample_name}_{lane}_R2_001.fastq.gz'
     params:
-        out_dir='preprocessed/{sample}',
+        out_dir='preprocessed/{sample_name}',
         phred_cutoff=5
     output:
         'preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz',
@@ -73,10 +80,10 @@ rule map_starlong:
         R1='preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz',
         R2='preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz',
         index=STAR_INDEX
-    output: 'mapped/bams/star/{sample_name}/{sample_name}_{lane}.bam'
+    output: 'mapped/bams/{sample_name}/{sample_name}_{lane}.bam'
     params:
-        prefix = 'mapped/bams/star/{sample_name}_{lane}',
-        unmapped = 'unmapped/fastq/star/{sample_name}_{lane}',
+        prefix = 'mapped/bams/{sample_name}_{lane}',
+        unmapped = 'unmapped/fastq/{sample_name}_{lane}',
         starlogs = 'mapped/starlogs'
     threads: 16
     shell:
@@ -98,26 +105,37 @@ rule map_starlong:
             {params.prefix}Log.out {params.prefix}Log.progress.out {params.starlogs}
         '''
 
+## See: https://software.broadinstitute.org/gatk/guide/article?id=3060
+## Merging should happen post alignment
+rule merge_bams:
+    input: expand('mapped/bams/{{sample_name}}/{{sample_name}}_{lane}.bam', lane=set(LANE_NAMES))
+    output: 'mapped/merged_bams/{sample_name}.bam'
+    run:
+        cmd = ' -in '.join(input)
+        shell(r'''bamtools merge -in {cmd} -out {output}''')
+
 rule sort_by_name:
-    input: 'mapped/bams/star/{sample}.bam'
-    output: 'mapped/bams/star/{sample}.sortedByName.bam'
+    input: 'mapped/merged_bams/{sample}.bam'
+    output: 'mapped/merged_bams/{sample}.sortedByName.bam'
     shell:
         r'''
             samtools sort -on {input} -T /tmp/ -o {output}
         '''
+
 rule count:
-    input: 'mapped/bams/star/{sample}.sortedByName.bam'
+    input: 'mapped/merged_bams/{sample}.sortedByName.bam'
     params:
         annotation=GTF,
         phred_cutoff=5
-    output: 'mapped/counts_strict/star/{sample}.counts.tsv'
+    output: 'mapped/counts_strict/{sample}.counts.tsv'
     shell:
         r'''
         source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded=no --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
         '''
+
 rule format_counts:
-    input: 'mapped/counts_strict/star/{sample}.counts.tsv'
-    output: 'mapped/counts_strict/star/{sample}.counts.noversion.tsv'
+    input: 'mapped/counts_strict/{sample}.counts.tsv'
+    output: 'mapped/counts_strict/{sample}.counts.noversion.tsv'
     shell:
         r'''
         cat {input} | sed -E 's/\.[0-9]+//' > {output}
@@ -125,29 +143,49 @@ rule format_counts:
         '''
 
 rule run_deseq:
-    input: expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES)
+    input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLE_NAMES)
     output:
         'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
 
     params:
-        basedir = 'mapped/counts_strict/star',
+        basedir = 'mapped/counts_strict/',
         inprefix = 'counts.noversion',
         gene_annotations  = GENE_NAMES,
-        design_file = RAWDATA_DIR + '/exp-design/'+GENOME_BUILD+'_design.txt',
         outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
     shell:
         r'''
         Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
             --gene_annotations={params.gene_annotations} \
-            --design_file={params.design_file} \
+            --design_file={DESIGN_FILE} \
             --outprefix={params.outprefix} \
             --inprefix={params.inprefix}
 
         '''
 
+
+rule featurecounts:
+    input: expand('mapped/merged_bams/{sample}.sortedByName.bam', sample=SAMPLE_NAMES)
+    params:
+        annotation=GTF
+    output: 'mapped/featureCounts/fcounts.tsv'
+    threads: 8
+    shell:
+        r'''featureCounts -a {params.annotation} -o {output} -t exon -g gene_id -Q 5 -T {threads} {input}'''
+
+
+rule format_fcounts:
+    input: 'mapped/featureCounts/fcounts.tsv'
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
+    shell:
+        r'''
+        cat {input} | sed -E 's/\.[0-9]+//' > {output}
+
+        '''
+
+
 rule run_picardmetrics:
-    input: 'mapped/bams/star/{sample}.bam'
+    input: 'mapped/merged_bams/{sample}.bam'
     output: 'mapped/bam_metrics/{sample}.metrics'
     shell:
         r'''
@@ -163,30 +201,65 @@ rule create_insertsize_tsv:
         python {SRC_DIR}/collect_picard_metrics.py {input} {output}
 
         '''
-
 rule counts_to_tpm:
     input:
-        count = expand('mapped/counts_strict/star/{sample}.counts.noversion.tsv', sample=SAMPLES),
-        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLES),
+        count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLE_NAMES),
+        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLE_NAMES),
     output: 'mapped/tpm/{sample}.tpm.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
-        name=expand('{sample}', sample=SAMPLES),
+        name=expand('{sample}', sample=SAMPLE_NAMES),
         outprefix='mapped/tpm',
-        gene_map=GENE_NAME_MAP
+        gene_map=GENE_NAMES
     run:
         counts_input = (',').join(input.count)
         sizes_input = (',').join(input.insert_size)
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 
+"""
 rule plot_tpm:
-    input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES)
-    output: expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
+    input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES)
+    output: expand('mapped/plots/{sample1}_vs_{sample2}.scatter.png', sample1=SAMPLE_NAMES, sample2=SAMPLE_NAMES)
     run:
         for inp1, inp2 in zip(input, input):
             inp11 = inp1.split('/')[-1]
             inp22 = inp2.split('/')[-1]
             shell('python {SRC_DIR}/plot_tpm_scatter.py {inp1} {inp2} mapped/plots/{inp11}vs{inp22}.scatter')
+"""
+
+rule perform_qualimap_qc:
+    input:  'mapped/merged_bams/{sample}.bam',
+    output: 'mapped/post_mapping_qualimap/{sample}/qualimapReport.html',
+    params:
+        outdir='mapped/post_mapping_qualimap/{sample}',
+        gtf=GTF
+    shell:
+        r'''
+        qualimap rnaseq -bam {input} -gtf {params.gtf} --outdir {params.outdir} --java-mem-size=8G
+
+        '''
+
+rule get_duplication_estimate:
+    input:  'mapped/merged_bams/{sample}.bam'
+    output: 'mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r'
+    params:
+        outprefix='mapped/post_mapping_deduplication/{sample}/output'
+    shell:
+        r'''
+        source activate clipseq2 && read_duplication.py -i {input} -o {params.outprefix}
+        '''
+
+rule run_multiqc:
+    input:
+        expand('qc/{sample_name}_{lane}_R1_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('qc/{sample_name}_{lane}_R2_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r', sample=SAMPLE_NAMES),
+        expand('mapped/post_mapping_qualimap/{sample}/qualimapReport.html', sample=SAMPLE_NAMES),
+        expand('mapped/merged_bams/{sample}.bam', sample=SAMPLE_NAMES)
+    output:
+        'multiqc_report/multiqc_report.html'
+    shell:
+        'export LC_ALL=en_US.UTF-8 && multiqc -f --outdir multiqc_report .'
 
 
