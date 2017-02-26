@@ -41,6 +41,8 @@ rule all:
         'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
         expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
+        expand('mapped/fpkm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
+
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLE_NAMES)
 
 
@@ -271,4 +273,13 @@ rule extract_intergenic_reads:
         r'''
         samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
         '''
-        
+rule calc_fpkm:
+    input: 'mapped/merged_bams/{sample}.bam'
+    output: 'mapped/fpkm/{sample}.fpkm.tsv'
+    params:
+        prefix='mapped/fpkm/{sample}.fpkm'
+    shell:
+        r'''
+        source activate clipseq2 && read_duplication.py -i {input} -o {params.prefix} -r {GENE_BED}
+
+        '''
