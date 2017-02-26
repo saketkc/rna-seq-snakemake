@@ -9,3 +9,4 @@ GTF = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.annotatio
 GENE_NAMES = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + GENOME_BUILD+'_gene_names_stripped.tsv'
 GENE_LENGTHS = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.coding_lengths.tsv'  #+ GENOME_BUILD+'_gene_lengths.tsv'
 DESIGN_FILE = OUT_DIR + '/' + 'human_design.txt'
+INTERGENIC_BED = '/staging/as/skchoudh/rna/HuR_results/conservation/annotated_beds/union/hmaster_confident.annotated.intergenic.bed'

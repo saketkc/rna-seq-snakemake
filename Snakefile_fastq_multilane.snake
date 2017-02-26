@@ -40,6 +40,7 @@ rule all:
         expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLE_NAMES),
         'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
+        expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
         #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLE_NAMES)
 
 
@@ -262,4 +263,12 @@ rule run_multiqc:
     shell:
         'export LC_ALL=en_US.UTF-8 && multiqc -f --outdir multiqc_report .'
 
-
+rule extract_intergenic_reads:
+    input:
+        bam='mapped/merged_bams/{sample}.bam'
+    output: 'mapped/integenic_reads/{sample}.intergenic.bam'
+    shell:
+        r'''
+        samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
+        '''
+        
