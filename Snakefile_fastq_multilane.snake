@@ -1,23 +1,34 @@
 include:
+    'configs/config_HuR.human.Penalva_L_01182017.py'
     #'configs/config_Penalva_L_01182017.human.py'
-    'configs/config_Musashi1_Penalva_L_12212016.human.py'
+    #'configs/config_Musashi1_Penalva_L_12212016.human.py'
 
 workdir: OUT_DIR
 
-from itertools import chain
+from itertools import chain, combinations
 from os.path import join
 import glob
 import re
 
+"""
+The idea behind this section is to get sample names and the corresponding lanes,
+here I do it for filenames which look like this:
+HepG2_Control_1_S7_L001_R1_001.fastq.gz
+HepG2_Control_1_S7_L001_R2_001.fastq.gz
+HepG2_Control_1_S7_L002_R1_001.fastq.gz
+HepG2_Control_1_S7_L002_R2_001.fastq.gz
+HepG2_Control_1_S7_L003_R1_001.fastq.gz
+HepG2_Control_1_S7_L003_R2_001.fastq.gz
+HepG2_Control_1_S7_L004_R1_001.fastq.gz
+HepG2_Control_1_S7_L004_R2_001.fastq.gz
+
+So the SAMPLE_NAME here is HepG2_Control_1_S7 which was sequenced(paired-end) in 4 lanes: L001-L004.
+
+"""
 SAMPLES = glob.glob('{}**/*.fastq.gz'.format(RAWDATA_DIR), recursive=True)
-#SAMPLE_NAMES = set(map(lambda x: ('_').join(x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[:4]), SAMPLES))
-#LANE_NAMES = set(map(lambda x: x.replace('{}/'.format(RAWDATA_DIR),'').split('_')[4], SAMPLES))
 SAMPLE_LANE = []
 for sample in SAMPLES:
     sample = sample.replace('{}/'.format(RAWDATA_DIR),'')
-    #sample_split = sample.split('_')
-    #sample_name = ('_').join(sample_split[:4])
-    #lane_name = sample_split[4]
     sample_name = re.split(r'_L\d\d\d_', sample)[0]
     lane_name = re.search(r'L\d\d\d', sample).group()
     SAMPLE_LANE.append((sample_name, lane_name))
@@ -25,6 +36,10 @@ for sample in SAMPLES:
 SAMPLE_LANE = set(SAMPLE_LANE)
 SAMPLE_LANE = sorted(SAMPLE_LANE, key=lambda tup: tup[0])
 SAMPLE_NAMES, LANE_NAMES = zip(*SAMPLE_LANE)
+
+PLOT_PREFIXES = list(combinations(set(SAMPLE_NAMES), 2))
+PLOT_PREFIXES_1 = [x[0] for x in PLOT_PREFIXES]
+PLOT_PREFIXES_2 = [x[1] for x in PLOT_PREFIXES]
 
 rule all:
     input:
@@ -35,15 +50,15 @@ rule all:
         expand('preprocessed/{sample_name}/{sample_name}_{lane}_R2_001_val_2.fq.gz', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
         expand('mapped/bams/{sample_name}/{sample_name}_{lane}.bam', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
         expand('mapped/merged_bams/{sample_name}.bam', sample_name=SAMPLE_NAMES),
-        #expand('mapped/plots/{sample1}_vs_{sample2}.scatter.png', sample1=SAMPLE_NAMES, sample2=SAMPLE_NAMES),
-        'multiqc_report/multiqc_report.html',
+        #expand('mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png', sample1=PLOT_PREFIXES_1, sample2=PLOT_PREFIXES_2),
         expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLE_NAMES),
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
         expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
-        expand('mapped/fpkm/{sample}.tpm.tsv', sample=SAMPLE_NAMES),
-
-        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLE_NAMES)
+        expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
+        'mapped/plots/tpm_scatter/',
+        'mapped/tpm/masterTPM.tsv',
+        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv',
+        'multiqc_report/multiqc_report.html',
 
 
 rule perform_qc:
@@ -77,7 +92,20 @@ rule perfom_trimming:
             trim_galore --paired -o {params.out_dir} -q {params.phred_cutoff} {input.R1} {input.R2}
         '''
 
+"""This is optimised for >150bp reads:
+--outFilterMultimapScoreRange 20 : the score range below the maximum score for multimapping alignments
+--outFilterScoreMinOverLread 0 : alignment will output only if score is ghier than or equal to this value normalised for read length
+--outFilterMatchNminOverLread 0.66 :  alignment will output only if number of matched bases is higher than or equal to his value normalised for read length
+--outFilterMismatchNmax 100 : increases the number of allowed mismatches to 100 - need to allow more mismatches for longer reads
+--winAnchorMultimapNmax 200 : Maximum number of loci anchors are allowed to map
+--seedPerReadNmax 100000   --seedPerWindowNmax 100 : increase the number of allowed seeds for each read and alignment window - need to store more seeds for longer reads
 
+## Not used
+--seedSearchStartLmax 30 : increases the number of seed search start position in the read - important for reads with high error rate
+--seedSearchLmax 30 : similar to the above, limits the maximum length of the seeds. Presently, I do not recommend changing this parameter
+--alignTranscriptsPerReadNmax 100000 --alignTranscriptsPerWindowNmax 10000 : increase the number of allowed alignments for each read and alignment window - need to store more putative alignments for longer reads
+
+"""
 rule map_starlong:
     input:
         R1='preprocessed/{sample_name}/{sample_name}_{lane}_R1_001_val_1.fq.gz',
@@ -185,7 +213,26 @@ rule format_fcounts:
         cat {input} | sed -E 's/\.[0-9]+//' > {output}
 
         '''
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
 
+rule run_deseq_featureCounts:
+    input: 'mapped/featureCounts/fcounts.noversion.tsv'
+    output:
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+    params:
+        basedir = 'mapped/featureCounts/',
+        inprefix = 'counts.noversion',
+        gene_annotations  = GENE_NAMES,
+        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+    shell:
+        r'''
+        Rscript {SRC_DIR}/do_DE_analysis_featureCounts.R --counts={input} \
+            --gene_annotations={params.gene_annotations} \
+            --design_file={DESIGN_FILE} \
+            --outprefix={params.outprefix}
+
+        '''
 
 rule run_picardmetrics:
     input: 'mapped/merged_bams/{sample}.bam'
@@ -204,11 +251,12 @@ rule create_insertsize_tsv:
         python {SRC_DIR}/collect_picard_metrics.py {input} {output}
 
         '''
+
 rule counts_to_tpm:
     input:
         count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLE_NAMES),
         insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLE_NAMES),
-    output: 'mapped/tpm/{sample}.tpm.tsv'
+    output: 'mapped/tpm/masterTPM.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
         name=expand('{sample}', sample=SAMPLE_NAMES),
@@ -220,16 +268,15 @@ rule counts_to_tpm:
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 
-"""
 rule plot_tpm:
-    input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLE_NAMES)
-    output: expand('mapped/plots/{sample1}_vs_{sample2}.scatter.png', sample1=SAMPLE_NAMES, sample2=SAMPLE_NAMES)
-    run:
-        for inp1, inp2 in zip(input, input):
-            inp11 = inp1.split('/')[-1]
-            inp22 = inp2.split('/')[-1]
-            shell('python {SRC_DIR}/plot_tpm_scatter.py {inp1} {inp2} mapped/plots/{inp11}vs{inp22}.scatter')
-"""
+    input: 'mapped/tpm/masterTPM.tsv'
+    output: 'mapped/plots/tpm_scatter/'
+    params:
+        prefix = 'mapped/plots/tpm_scatter/'
+    shell:
+        r'''
+        export LC_ALL=en_US.UTF-8 && python {SRC_DIR}/plot_tpm_scatter.py --master {input} --outprefix  {params.prefix}
+        '''
 
 rule perform_qualimap_qc:
     input:  'mapped/merged_bams/{sample}.bam',
@@ -257,6 +304,7 @@ rule run_multiqc:
     input:
         expand('qc/{sample_name}_{lane}_R1_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
         expand('qc/{sample_name}_{lane}_R2_001_fastqc.html', zip, sample_name=SAMPLE_NAMES, lane=LANE_NAMES),
+        expand('mapped/bam_metrics/{sample}.metrics', sample=SAMPLE_NAMES),
         expand('mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r', sample=SAMPLE_NAMES),
         expand('mapped/post_mapping_qualimap/{sample}/qualimapReport.html', sample=SAMPLE_NAMES),
         expand('mapped/merged_bams/{sample}.bam', sample=SAMPLE_NAMES)
@@ -273,13 +321,13 @@ rule extract_intergenic_reads:
         r'''
         samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
         '''
+
 rule calc_fpkm:
     input: 'mapped/merged_bams/{sample}.bam'
-    output: 'mapped/fpkm/{sample}.fpkm.tsv'
+    output: 'mapped/fpkm/{sample}.FPKM.xls'
     params:
-        prefix='mapped/fpkm/{sample}.fpkm'
+        prefix='mapped/fpkm/{sample}'
     shell:
         r'''
-        source activate clipseq2 && read_duplication.py -i {input} -o {params.prefix} -r {GENE_BED}
-
+        source activate clipseq2 && FPKM_count.py -i {input} -o {params.prefix} -r {GENE_BED}
         '''

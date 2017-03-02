@@ -13,3 +13,8 @@ map_star:
     time: '12:00:00'
     cores: 16
     mem: '61000MB'
+
+featurecounts:
+    time: '3:00:00'
+    cores: 16
+    mem: '61000MB'
