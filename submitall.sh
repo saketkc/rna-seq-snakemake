@@ -4,6 +4,7 @@ echo $PWD
 
 snakemake --js $PWD/jobscript.sh\
     --printshellcmds\
+    --restart-times 4\
     --cluster-config $PWD/cluster.yaml\
     --jobname 'make.{jobid}.{rulename}'\
     --keep-going\
