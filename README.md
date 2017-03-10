@@ -11,3 +11,13 @@ containing all `*.fq/*.fq.gz/*.fastq.gz/*.sra` files.
 3. [Snakefile_sra_se](Snakefile_sra_se) - For single end `*.sra` files
 
 4. [Snakefile_fastq](Snakefile_fastq) - For paired end fastq files
+
+## Dependecies
+
+- snakemake
+- STAR
+- bamtools
+- DESeq2
+- qualimap
+- multiqc
+- rseqc
