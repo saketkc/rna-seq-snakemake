@@ -52,12 +52,14 @@ rule all:
         expand('mapped/merged_bams/{sample_name}.bam', sample_name=SAMPLE_NAMES),
         #expand('mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png', sample1=PLOT_PREFIXES_1, sample2=PLOT_PREFIXES_2),
         expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLE_NAMES),
-        expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
-        expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
+        expand('mapped/intergenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
+        expand('inferred_experiment/{sample}.txt', sample=SAMPLE_NAMES),
+        expand('mapped/counts_DEXSeq/{sample}.DEXSeq.counts.tsv', sample=SAMPLE_NAMES),
+        #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
         'mapped/plots/tpm_scatter/',
         'mapped/tpm/masterTPM.tsv',
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
         'multiqc_report/multiqc_report.html',
 
 
@@ -161,7 +163,7 @@ rule count:
     output: 'mapped/counts_strict/{sample}.counts.tsv'
     shell:
         r'''
-        source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded=no --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
+        source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded={HTSEQ_STRANDED} --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
         '''
 
 rule format_counts:
@@ -173,17 +175,25 @@ rule format_counts:
 
         '''
 
+rule infer_experiment:
+    input: 'mapped/merged_bams/{sample}.bam'
+    output: 'inferred_experiment/{sample}.txt'
+    shell:
+        r'''
+        source activate clipseq2 && infer_experiment.py -r {GENE_BED} -i {input} 2>&1 > {output} 
+        '''
+
 rule run_deseq:
     input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLE_NAMES)
     output:
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv'
 
     params:
         basedir = 'mapped/counts_strict/',
         inprefix = 'counts.noversion',
         gene_annotations  = GENE_NAMES,
-        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+        outprefix = 'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq'
     shell:
         r'''
         Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
@@ -196,13 +206,13 @@ rule run_deseq:
 
 
 rule featurecounts:
-    input: expand('mapped/merged_bams/{sample}.sortedByName.bam', sample=SAMPLE_NAMES)
+    input: expand('mapped/merged_bams/{sample}.sortedByName.bam', sample=set(SAMPLE_NAMES))
     params:
         annotation=GTF
     output: 'mapped/featureCounts/fcounts.tsv'
-    threads: 8
+    threads: 16
     shell:
-        r'''featureCounts -a {params.annotation} -o {output} -t exon -g gene_id -Q 5 -T {threads} {input}'''
+        r'''featureCounts {FEATURECOUNTS_S} -a {params.annotation} -o {output} -t exon -g gene_id -Q 4 -T {threads} {input}'''
 
 
 rule format_fcounts:
@@ -218,13 +228,11 @@ rule format_fcounts:
 rule run_deseq_featureCounts:
     input: 'mapped/featureCounts/fcounts.noversion.tsv'
     output:
-        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv'
     params:
-        basedir = 'mapped/featureCounts/',
-        inprefix = 'counts.noversion',
         gene_annotations  = GENE_NAMES,
-        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+        outprefix = 'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts'
     shell:
         r'''
         Rscript {SRC_DIR}/do_DE_analysis_featureCounts.R --counts={input} \
@@ -307,7 +315,9 @@ rule run_multiqc:
         expand('mapped/bam_metrics/{sample}.metrics', sample=SAMPLE_NAMES),
         expand('mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r', sample=SAMPLE_NAMES),
         expand('mapped/post_mapping_qualimap/{sample}/qualimapReport.html', sample=SAMPLE_NAMES),
-        expand('mapped/merged_bams/{sample}.bam', sample=SAMPLE_NAMES)
+        expand('mapped/merged_bams/{sample}.bam', sample=SAMPLE_NAMES),
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
     output:
         'multiqc_report/multiqc_report.html'
     shell:
@@ -316,10 +326,18 @@ rule run_multiqc:
 rule extract_intergenic_reads:
     input:
         bam='mapped/merged_bams/{sample}.bam'
-    output: 'mapped/integenic_reads/{sample}.intergenic.bam'
+    output: 'mapped/intergenic_reads/{sample}.intergenic.bam'
     shell:
         r'''
         samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
+        '''
+
+rule count_dexseq:
+    input: 'mapped/merged_bams/{sample}.sortedByName.bam'
+    output: 'mapped/counts_DEXSeq/{sample}.DEXSeq.counts.tsv'
+    shell:
+        r'''
+        source activate clipseq2 && python {SRC_DIR}/external/DEXSeq/dexseq_count.py -p yes -s {HTSEQ_STRANDED} -r name -f bam {DEXSeq_GFF} {input} {output}
         '''
 
 rule calc_fpkm:

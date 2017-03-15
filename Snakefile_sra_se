@@ -1,32 +1,38 @@
 include:
-    'configs/config_GSE62129.py'
+    'configs/config_MSI2.GSE71333.mouse.py'
 
 workdir: OUT_DIR
 
-from itertools import chain
+from itertools import chain, combinations
 from os.path import join
 import os
 import glob
 
+print(RAWDATA_DIR)
 SAMPLES = []
-for path in glob.glob('{}/*.sra'.format(RAWDATA_DIR)):
+for path in glob.glob('{}/**/*.sra'.format(RAWDATA_DIR), recursive=True):
     dir, filename = os.path.split(path)
     SAMPLES.append(filename.replace('.sra',''))
 
+
+PLOT_PREFIXES = combinations(SAMPLES, 2)
+PLOT_PREFIXES_1 = [x[0] for x in PLOT_PREFIXES]
+PLOT_PREFIXES_2 = [x[1] for x in PLOT_PREFIXES]
 
 rule all:
     input:
         STAR_INDEX,
         expand('qc/{sample}_fastqc.html', sample=SAMPLES),
+        expand('inferred_experiment/{sample}.txt', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLES),
-        expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES),
-        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        #expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES),
-        expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
-        'DE_analysis/de_genes.DESeq2.sig.tsv',
-        expand('mapped/post_mapping_qc/{sample}/qualimapReport.html', sample=SAMPLES),
-        'multiqc_report/multiqc_report.html'
-        #'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        #expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLES),
+        expand('mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png', sample1=PLOT_PREFIXES_1, sample2=PLOT_PREFIXES_2),
+        #expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLES),
+        #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLES),
+        'mapped/tpm/masterTPM.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        #'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
+        #'multiqc_report/multiqc_report.html',
 
 
 rule create_index:
@@ -99,6 +105,24 @@ rule sort_by_name:
             samtools sort -on {input} -T /tmp/ -o {output}
         '''
 
+rule bam_to_sam:
+    input: 'mapped/bams/{sample}.bam'
+    output: 'mapped/sams/{sample}.sam'
+    shell:
+        r'''
+        samtools view -h -o {output} {input}
+
+        '''
+
+rule infer_experiment:
+    input: 'mapped/sams/{sample}.sam'
+    output: 'inferred_experiment/{sample}.txt'
+    shell:
+        r'''
+        source activate clipseq2 && infer_experiment.py -r {GENE_BED} -i {input} 2>&1 > {output} 
+        '''
+    
+    
 rule count:
     input: 'mapped/bams/{sample}.sortedByName.bam'
     params:
@@ -107,7 +131,7 @@ rule count:
     output: 'mapped/counts_strict/{sample}.counts.tsv'
     shell:
         r'''
-        source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded=no --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
+        source activate clipseq2 && htseq-count --order=name --format=bam --mode=intersection-strict --stranded={HTSEQ_STRANDED} --minaqual={params.phred_cutoff} --type=exon --idattr=gene_id {input} {params.annotation} > {output}
         '''
 
 rule format_counts:
@@ -119,27 +143,63 @@ rule format_counts:
 
         '''
 
+rule featurecounts:
+    input: expand('mapped/bams/{sample}.sortedByName.bam', sample=set(SAMPLES))
+    params:
+        annotation=GTF
+    output: 'mapped/featureCounts/fcounts.tsv'
+    threads: 16
+    shell:
+        r'''featureCounts -a {params.annotation} -o {output} -t exon -g gene_id -Q 4 -T {threads} {input}'''
+
+rule format_fcounts:
+    input: 'mapped/featureCounts/fcounts.tsv'
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
+    shell:
+        r'''
+        cat {input} | sed -E 's/\.[0-9]+//' > {output}
+
+        '''
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
+
 rule run_deseq:
     input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES)
     output:
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv'
 
     params:
-        basedir = 'mapped/counts_strict/star',
+        basedir = 'mapped/counts_strict',
         inprefix = 'counts.noversion',
         gene_annotations  = GENE_NAMES,
-        design_file = RAWDATA_DIR + '/design.txt',
-        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+        outprefix = 'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq'
     shell:
         r'''
         Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
             --gene_annotations={params.gene_annotations} \
-            --design_file={params.design_file} \
+            --design_file={DESIGN_FILE} \
             --outprefix={params.outprefix} \
             --inprefix={params.inprefix}
 
         '''
+
+rule run_deseq_featureCounts:
+    input: 'mapped/featureCounts/fcounts.noversion.tsv'
+    output:
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv'
+    params:
+        gene_annotations  = GENE_NAMES,
+        outprefix = 'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts'
+    shell:
+        r'''
+        Rscript {SRC_DIR}/do_DE_analysis_featureCounts.R --counts={input} \
+            --gene_annotations={params.gene_annotations} \
+            --design_file={DESIGN_FILE} \
+            --outprefix={params.outprefix}
+
+        '''
+
 
 rule run_picardmetrics:
     input: 'mapped/bams/{sample}.bam'
@@ -158,68 +218,37 @@ rule create_insertsize_tsv:
         python {SRC_DIR}/collect_picard_metrics.py {input} {output}
 
         '''
-"""
-rule counts_to_tpm_pe:
+rule counts_to_tpm:
     input:
         count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
         insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLES),
-    output: 'mapped/tpm/{sample}.tpm.tsv'
+    output: 'mapped/tpm/masterTPM.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
         name=expand('{sample}', sample=SAMPLES),
         outprefix='mapped/tpm',
-        gene_map=GENE_NAME_MAP
+        gene_map=GENE_NAMES
     run:
         counts_input = (',').join(input.count)
         sizes_input = (',').join(input.insert_size)
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
-"""
-
-r"""ule counts_to_tpm_se:
-    input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
-    output: 'mapped/tpm/{sample}.tpm.tsv'
-    params:
-        gene_lengths=GENE_LENGTHS,
-        name=expand('{sample}', sample=SAMPLES),
-        outprefix='mapped/tpm',
-        gene_map=GENE_NAME_MAP
-    run:
-        counts_input = (',').join(input)
-        names = (',').join(params.name)
-        shell('Rscript {SRC_DIR}/counts_to_tpm_se.R --counts={counts_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 
 rule plot_tpm:
-    input: expand('mapped/tpm/{sample}.tpm.tsv', sample=SAMPLES)
-    output: expand('mapped/plots/{sample}vs{sample}.scatter.png', sample=SAMPLES)
-    run:
-        for inp1, inp2 in zip(input, input):
-            inp11 = inp1.split('/')[-1]
-            inp22 = inp2.split('/')[-1]
-            shell('python {SRC_DIR}/plot_tpm_scatter.py {inp1} {inp2} mapped/plots/{inp11}vs{inp22}.scatter')
-
-rule do_de_analysis:
-    input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
-    output: 'DE_analysis/de_genes.DESeq2.sig.tsv'
+    input: 'mapped/tpm/masterTPM.tsv'
+    output: 'mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png'
     params:
-        basedir='mapped/counts_strict',
-        design_file=DESIGN_FILE,
-        outprefix='DE_analysis/de_genes',
-        gene_annotations=GENE_NAME_MAP,
-        inprefix='counts.noversion'
+        prefix = 'mapped/plots/tpm_scatter/'
     shell:
-        r'''Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
-        --design_file={params.design_file} \
-        --gene_annotations={params.gene_annotations} \
-        --outprefix={params.outprefix} \
-        --inprefix={params.inprefix}
+        r'''
+        python {SRC_DIR}/plot_tpm_scatter.py --master {input} --outprefix  {params.prefix}
         '''
 
 rule perform_qualimap_qc:
     input:  'mapped/bams/{sample}.bam',
-    output: 'mapped/post_mapping_qc/{sample}/qualimapReport.html'
+    output: 'mapped/post_mapping_qualimap/{sample}/qualimapReport.html',
     params:
-        outdir='mapped/post_mapping_qc/{sample}',
+        outdir='mapped/post_mapping_qualimap/{sample}',
         gtf=GTF
     shell:
         r'''
@@ -227,14 +256,37 @@ rule perform_qualimap_qc:
 
         '''
 
+rule get_duplication_estimate:
+    input:  'mapped/bams/{sample}.bam'
+    output: 'mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r'
+    params:
+        outprefix='mapped/post_mapping_deduplication/{sample}/output'
+    shell:
+        r'''
+        source activate clipseq2 && read_duplication.py -i {input} -o {params.outprefix}
+        '''
+
 rule run_multiqc:
     input:
-        expand('mapped/post_mapping_qc/{sample}/qualimapReport.html', sample=SAMPLES),
-        expand('qc/{sample}_fastqc.html', sample=SAMPLES),
-        expand('mapped/bams/{sample}.bam', sample=SAMPLES)
+        expand('qc/{sample_name}_R1_001_fastqc.html', sample_name=SAMPLES),
+        expand('qc/{sample_name}_R2_001_fastqc.html', sample_name=SAMPLES),
+        expand('mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r', sample=SAMPLES),
+        expand('mapped/bam_metrics/{sample}.metrics', sample=SAMPLES),
+        expand('mapped/post_mapping_qualimap/{sample}/qualimapReport.html', sample=SAMPLES),
+        expand('mapped/bams/{sample}.bam', sample=SAMPLES),
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
     output:
         'multiqc_report/multiqc_report.html'
     shell:
-        'export LC_ALL=en_US.UTF-8 && multiqc --outdir multiqc_report .'
+        'export LC_ALL=en_US.UTF-8 && multiqc -f --outdir multiqc_report .'
 
-
+rule calc_fpkm:
+    input: 'mapped/bams/{sample}.bam'
+    output: 'mapped/fpkm/{sample}.FPKM.xls'
+    params:
+        prefix='mapped/fpkm/{sample}'
+    shell:
+        r'''
+        source activate clipseq2 && FPKM_count.py -i {input} -o {params.prefix} -r {GENE_BED}
+        '''
