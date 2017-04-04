@@ -1,7 +1,7 @@
 GENOMES_DIR='/home/cmb-panasas2/skchoudh/genomes'
 OUT_DIR = '/staging/as/skchoudh/rna/HuR_results/human/rna_seq_Penalva_L_01182017'
 SRC_DIR = '/home/cmb-panasas2/skchoudh/github_projects/clip_seq_pipeline/scripts'
-RAWDATA_DIR ='/staging/as/skchoudh/dna/lai_data/Penalva_L_01182017'
+RAWDATA_DIR ='/home/cmb-06/as/skchoudh/dna/dna/lai_data/Penalva_L_01182017'
 GENOME_BUILD = 'hg38'
 GENOME_FASTA = GENOMES_DIR + '/' + GENOME_BUILD + '/fasta/'+ GENOME_BUILD+ '.fa'
 STAR_INDEX = GENOMES_DIR + '/' + GENOME_BUILD + '/star_annotated'

@@ -15,3 +15,9 @@ INTERGENIC_BED = '/staging/as/skchoudh/rna/HuR_results/conservation/annotated_be
 ANNOT_DIR = '/home/cmb-panasas2/skchoudh/github_projects/gencode_regions/data/GRCm38/vM11/'
 GENE_BED = ANNOT_DIR + 'genes.bed'
 
+HTSEQ_STRANDED = 'no'
+FEATURECOUNTS_S = ''
+
+GENE_BED = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.vM11.annotation.genePred.ssv'  #+ GENOME_BUILD+'_gene_lengths.tsv'
+GENE_BED_TSV = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.vM11.annotation.genePred'  #+ GENOME_BUILD+'_gene_lengths.tsv'
+DEXSeq_GFF = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.vM11.annotation.DEXSeq.gff'

@@ -1,1 +1,1 @@
-Snakefile_fastq_multilane.snake
+Snakefile_fastq_singlelane

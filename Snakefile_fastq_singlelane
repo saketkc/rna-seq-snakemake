@@ -1,5 +1,5 @@
 include:
-    'configs/config_HuR.JBC_UREN_2011.human.py'
+    'configs/config_HuR.mouse.py'
 
 workdir: OUT_DIR
 
@@ -25,7 +25,8 @@ rule all:
         expand('mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png', sample1=PLOT_PREFIXES_1, sample2=PLOT_PREFIXES_2),
         #expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLES),
         #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLES),
-        'mapped/tpm/masterTPM.tsv',
+        'mapped/tpm/HTSeq/masterTPM.tsv',
+        'mapped/tpm/featureCounts/masterTPM.tsv',
         'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
         'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
         'multiqc_report/multiqc_report.html',
@@ -235,11 +236,11 @@ rule counts_to_tpm:
     input:
         count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES),
         insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLES),
-    output: 'mapped/tpm/masterTPM.tsv'
+    output: 'mapped/tpm/HTSeq/masterTPM.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
-        name=expand('{sample}', sample=SAMPLES),
-        outprefix='mapped/tpm',
+        name=expand('{sample}', sample=set(SAMPLES)),
+        outprefix='mapped/tpm/HTSeq',
         gene_map=GENE_NAMES
     run:
         counts_input = (',').join(input.count)
@@ -247,8 +248,23 @@ rule counts_to_tpm:
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
 
+rule featurecounts_to_tpm:
+    input:
+        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=set(SAMPLES)),
+        fcounts = 'mapped/featureCounts/fcounts.noversion.tsv'
+    output: 'mapped/tpm/featureCounts/masterTPM.tsv'
+    params:
+        gene_lengths=GENE_LENGTHS,
+        name=expand('{sample}', sample=set(SAMPLES)),
+        outprefix='mapped/tpm/featureCounts',
+        gene_map=GENE_NAMES
+    run:
+        sizes_input = (',').join(input.insert_size)
+        names = (',').join(params.name)
+        shell('Rscript {SRC_DIR}/featurecounts_to_tpm.R --counts={input.fcounts} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
+
 rule plot_tpm:
-    input: 'mapped/tpm/masterTPM.tsv'
+    input: 'mapped/tpm/HTSeq/masterTPM.tsv'
     output: 'mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png'
     params:
         prefix = 'mapped/plots/tpm_scatter/'
@@ -294,16 +310,6 @@ rule run_multiqc:
     shell:
         'export LC_ALL=en_US.UTF-8 && multiqc -f --outdir multiqc_report .'
 
-"""
-rule extract_intergenic_reads:
-    input:
-        bam='mapped/bams/{sample}.bam'
-    output: 'mapped/integenic_reads/{sample}.intergenic.bam'
-    shell:
-        r'''
-        samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
-        '''
-""""
 
 rule calc_fpkm:
     input: 'mapped/bams/{sample}.bam'

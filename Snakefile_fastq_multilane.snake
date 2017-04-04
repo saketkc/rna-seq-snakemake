@@ -1,5 +1,6 @@
 include:
-    'configs/config_HuR.human.Penalva_L_01182017.py'
+    #'configs/config_HuR.human.Penalva_L_01182017.py'
+    'configs/config_HuR.mouse.py'
     #'configs/config_Penalva_L_01182017.human.py'
     #'configs/config_Musashi1_Penalva_L_12212016.human.py'
 
@@ -55,11 +56,11 @@ rule all:
         expand('mapped/intergenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
         expand('inferred_experiment/{sample}.txt', sample=SAMPLE_NAMES),
         expand('mapped/counts_DEXSeq/{sample}.DEXSeq.counts.tsv', sample=SAMPLE_NAMES),
-        expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
+        #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
         'mapped/plots/tpm_scatter/',
-        'mapped/tpm/masterTPM.tsv',
-        'mapped/tpm/featureCountsmasterTPM.tsv',
-        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv',
+        'mapped/tpm/HTSeq/masterTPM.tsv',
+        'mapped/tpm/featureCounts/masterTPM.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
         'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
         'multiqc_report/multiqc_report.html',
 
@@ -265,11 +266,11 @@ rule counts_to_tpm:
     input:
         count = expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLE_NAMES),
         insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLE_NAMES),
-    output: 'mapped/tpm/masterTPM.tsv'
+    output: 'mapped/tpm/HTSeq/masterTPM.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
-        name=expand('{sample}', sample=SAMPLE_NAMES),
-        outprefix='mapped/tpm',
+        name=expand('{sample}', sample=set(SAMPLE_NAMES)),
+        outprefix='mapped/tpm/HTSeq',
         gene_map=GENE_NAMES
     run:
         counts_input = (',').join(input.count)
@@ -281,13 +282,13 @@ rule counts_to_tpm:
 
 rule featurecounts_to_tpm:
     input:
-        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLE_NAMES),
+        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=set(SAMPLE_NAMES)),
         fcounts = 'mapped/featureCounts/fcounts.noversion.tsv'
-    output: 'mapped/tpm/featureCountsmasterTPM.tsv'
+    output: 'mapped/tpm/featureCounts/masterTPM.tsv'
     params:
         gene_lengths=GENE_LENGTHS,
-        name=expand('{sample}', sample=SAMPLE_NAMES),
-        outprefix='mapped/tpm',
+        name=expand('{sample}', sample=set(SAMPLE_NAMES)),
+        outprefix='mapped/tpm/featureCounts',
         gene_map=GENE_NAMES
     run:
         sizes_input = (',').join(input.insert_size)
@@ -296,7 +297,7 @@ rule featurecounts_to_tpm:
 
 
 rule plot_tpm:
-    input: 'mapped/tpm/masterTPM.tsv'
+    input: 'mapped/tpm/HTSeq/masterTPM.tsv'
     output: 'mapped/plots/tpm_scatter/'
     params:
         prefix = 'mapped/plots/tpm_scatter/'
