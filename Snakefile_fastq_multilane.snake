@@ -55,7 +55,7 @@ rule all:
         expand('mapped/intergenic_reads/{sample}.intergenic.bam', sample=SAMPLE_NAMES),
         expand('inferred_experiment/{sample}.txt', sample=SAMPLE_NAMES),
         expand('mapped/counts_DEXSeq/{sample}.DEXSeq.counts.tsv', sample=SAMPLE_NAMES),
-        #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
+        expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
         'mapped/plots/tpm_scatter/',
         'mapped/tpm/masterTPM.tsv',
         'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
@@ -180,7 +180,7 @@ rule infer_experiment:
     output: 'inferred_experiment/{sample}.txt'
     shell:
         r'''
-        source activate clipseq2 && infer_experiment.py -r {GENE_BED} -i {input} 2>&1 > {output} 
+        source activate clipseq2 && infer_experiment.py -r {GENE_BED_TSV} -i {input} 2>&1 > {output} 
         '''
 
 rule run_deseq:
