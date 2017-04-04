@@ -1,5 +1,5 @@
 include:
-    #'configs/config_HuR.mouse.py'
+    'configs/config_HuR.JBC_UREN_2011.human.py'
 
 workdir: OUT_DIR
 
@@ -22,11 +22,12 @@ rule all:
         expand('qc/{sample}_R1_001_fastqc.html', sample=SAMPLES),
         expand('qc/{sample}_R2_001_fastqc.html', sample=SAMPLES),
         expand('mapped/counts_strict/{sample}.counts.tsv', sample=SAMPLES),
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/tpm/masterTPM.tsv',
         expand('mapped/plots/tpm_scatter/{sample1}_VS_{sample2}.png', sample1=PLOT_PREFIXES_1, sample2=PLOT_PREFIXES_2),
-        expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLES),
-        expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLES),
+        #expand('mapped/integenic_reads/{sample}.intergenic.bam', sample=SAMPLES),
+        #expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLES),
+        'mapped/tpm/masterTPM.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
         'multiqc_report/multiqc_report.html',
 
 
@@ -155,17 +156,36 @@ rule format_counts:
 
         '''
 
+rule featurecounts:
+    input: expand('mapped/bams/{sample}.sortedByName.bam', sample=set(SAMPLES))
+    params:
+        annotation=GTF
+    output: 'mapped/featureCounts/fcounts.tsv'
+    threads: 16
+    shell:
+        r'''featureCounts -a {params.annotation} -o {output} -t exon -g gene_id -Q 4 -T {threads} {input}'''
+
+rule format_fcounts:
+    input: 'mapped/featureCounts/fcounts.tsv'
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
+    shell:
+        r'''
+        cat {input} | sed -E 's/\.[0-9]+//' > {output}
+
+        '''
+    output: 'mapped/featureCounts/fcounts.noversion.tsv'
+
 rule run_deseq:
     input: expand('mapped/counts_strict/{sample}.counts.noversion.tsv', sample=SAMPLES)
     output:
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
-        'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.sig.tsv'
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.all.tsv',
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv'
 
     params:
         basedir = 'mapped/counts_strict',
         inprefix = 'counts.noversion',
         gene_annotations  = GENE_NAMES,
-        outprefix = 'mapped/DE_analysis/'+GENOME_BUILD
+        outprefix = 'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq'
     shell:
         r'''
         Rscript {SRC_DIR}/do_DE_analysis.R --basedir={params.basedir} \
@@ -173,6 +193,23 @@ rule run_deseq:
             --design_file={DESIGN_FILE} \
             --outprefix={params.outprefix} \
             --inprefix={params.inprefix}
+
+        '''
+
+rule run_deseq_featureCounts:
+    input: 'mapped/featureCounts/fcounts.noversion.tsv'
+    output:
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.all.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv'
+    params:
+        gene_annotations  = GENE_NAMES,
+        outprefix = 'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts'
+    shell:
+        r'''
+        Rscript {SRC_DIR}/do_DE_analysis_featureCounts.R --counts={input} \
+            --gene_annotations={params.gene_annotations} \
+            --design_file={DESIGN_FILE} \
+            --outprefix={params.outprefix}
 
         '''
 
@@ -249,12 +286,15 @@ rule run_multiqc:
         expand('mapped/post_mapping_deduplication/{sample}/output.DupRate_plot.r', sample=SAMPLES),
         expand('mapped/bam_metrics/{sample}.metrics', sample=SAMPLES),
         expand('mapped/post_mapping_qualimap/{sample}/qualimapReport.html', sample=SAMPLES),
-        expand('mapped/bams/{sample}.bam', sample=SAMPLES)
+        expand('mapped/bams/{sample}.bam', sample=SAMPLES),
+        'mapped/DE_analysis/HTSeq/'+GENOME_BUILD+'.HTSeq.DESeq2.sig.tsv',
+        'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.featureCounts.DESeq2.sig.tsv',
     output:
         'multiqc_report/multiqc_report.html'
     shell:
         'export LC_ALL=en_US.UTF-8 && multiqc -f --outdir multiqc_report .'
 
+"""
 rule extract_intergenic_reads:
     input:
         bam='mapped/bams/{sample}.bam'
@@ -263,6 +303,7 @@ rule extract_intergenic_reads:
         r'''
         samtools index {input.bam} && samtools view -bhL {INTERGENIC_BED} > {output}
         '''
+""""
 
 rule calc_fpkm:
     input: 'mapped/bams/{sample}.bam'
