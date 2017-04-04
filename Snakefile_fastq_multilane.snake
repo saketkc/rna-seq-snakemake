@@ -56,6 +56,7 @@ rule all:
         expand('mapped/fpkm/{sample}.FPKM.xls', sample=SAMPLE_NAMES),
         'mapped/plots/tpm_scatter/',
         'mapped/tpm/masterTPM.tsv',
+        'mapped/tpm/featureCountsmasterTPM.tsv',
         'mapped/DE_analysis/'+GENOME_BUILD+'.DESeq2.all.tsv',
         'mapped/DE_analysis/featureCounts/'+GENOME_BUILD+'.DESeq2.sig.tsv',
         'multiqc_report/multiqc_report.html',
@@ -267,6 +268,24 @@ rule counts_to_tpm:
         sizes_input = (',').join(input.insert_size)
         names = (',').join(params.name)
         shell('Rscript {SRC_DIR}/counts_to_tpm.R --counts={counts_input} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
+
+
+
+rule featurecounts_to_tpm:
+    input:
+        insert_size = expand('mapped/bam_metrics/{sample}.insertsizes.tsv', sample=SAMPLE_NAMES),
+        fcounts = 'mapped/featureCounts/fcounts.noversion.tsv'
+    output: 'mapped/tpm/featureCountsmasterTPM.tsv'
+    params:
+        gene_lengths=GENE_LENGTHS,
+        name=expand('{sample}', sample=SAMPLE_NAMES),
+        outprefix='mapped/tpm',
+        gene_map=GENE_NAMES
+    run:
+        sizes_input = (',').join(input.insert_size)
+        names = (',').join(params.name)
+        shell('Rscript {SRC_DIR}/featurecounts_to_tpm.R --counts={input.fcounts} --insert_sizes={sizes_input} --gene_lengths={params.gene_lengths} --inprefix={names} --gene_map={params.gene_map} --outprefix={params.outprefix}')
+
 
 rule plot_tpm:
     input: 'mapped/tpm/masterTPM.tsv'
