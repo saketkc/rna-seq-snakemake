@@ -1,20 +1,7 @@
 __default__:
     q: 'cmb'
-    time: '3:00:00'
-    mem: '30000MB'
-    cores: 1
+    time: '100:00:00'
+    mem: '60000MB'
+    cores: 16
     logdir: '/home/cmb-06/as/skchoudh/logs/'
 
-create_index:
-    cores: 16
-    mem: '61000MB'
-
-map_star:
-    time: '12:00:00'
-    cores: 16
-    mem: '61000MB'
-
-featurecounts:
-    time: '3:00:00'
-    cores: 16
-    mem: '61000MB'

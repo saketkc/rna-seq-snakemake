@@ -2,7 +2,7 @@
 # properties = {properties}
 
 cd $PBS_O_WORKDIR
-export PATH="/home/cmb-panasas2/skchoudh/software_frozen/anaconda2/envs/clipseq/bin:/home/cmb-panasas2/skchoudh/software_frozen/meme_4.10.2_bin/bin:/home/cmb-panasas2/skchoudh/software_frozen/anaconda2/bin:/home/cmb-panasas2/skchoudh/software_frozen/phast-1.4/bin:/home/cmb-panasas2/skchoudh/software_frozen/meme_4.10.2_bin/bin:/home/cmb-panasas2/skchoudh/software_frozen/anaconda2/bin:/home/cmb-panasas2/skchoudh/software_frozen/phast-1.4/bin:/usr/lib64/qt-3.3/bin:/opt/moab/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin"
+export PATH="/home/cmb-panasas2/skchoudh/software_frozen/anaconda27/envs/clipseq/bin:/home/cmb-panasas2/skchoudh/software_frozen/anaconda27/bin:/usr/lib64/qt-3.3/bin:/opt/moab/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin"
 source activate clipseq
 
 echo $JOB_ID
