@@ -134,7 +134,6 @@ rule map_starlong:
         index=STAR_INDEX
     output:
         bam = 'mapped/bams/{sample_name}/{sample_name}_{lane}.bam',
-        counts = 'mapped/STARcounts/{sample_name}/{sample_name}_{lane}.counts',
         fastq1 = 'unmapped_fastq/{sample_name}/{sample_name}_{lane}_R1.fq',
         fastq2 = 'unmapped_fastq/{sample_name}/{sample_name}_{lane}_R2.fq'
     params:
@@ -156,10 +155,9 @@ rule map_starlong:
             --outFilterMismatchNmax 100\
             --winAnchorMultimapNmax 200\
             --seedPerReadNmax 100000 --seedPerWindowNmax 100\
-            --quantMode GeneCounts\
-            && mv {params.prefix}Aligned.sortedByCoord.out.bam {output.bam}\
-            && mv {params.prefix}ReadsPerGene.out.tab {output.counts}\
-            && mkdir -p {params.starlogs} && mv {params.prefix}Log.final.out {params.prefix}Log.out {params.prefix}Log.progress.out {params.starlogs} \
+            && mv {params.prefix}Aligned.sortedByCoord.out.bam {output.bam} &&\
+            mkdir -p {params.starlogs} && mv {params.prefix}Log.final.out\
+            {params.prefix}Log.out {params.prefix}Log.progress.out {params.starlogs}\
             && mkdir -p {params.unmapped} && mv {params.prefix}Unmapped.out.mate1 {output.fastq1} && mv {params.prefix}Unmapped.out.mate2 {output.fastq2} && samtools index {output.bam}
         '''
 

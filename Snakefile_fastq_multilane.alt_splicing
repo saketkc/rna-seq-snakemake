@@ -429,7 +429,7 @@ rule alt_t1t0:
         b2 = ','.join(input.t1)
         gtf = GTF
         star_index = STAR_INDEX
-        shell(r'''source activate python2 && RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
+        shell(r'''source activate python2 && python /home/cmb-panasas2/skchoudh/software_frozen/rMATS.3.2.5/RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
 
 
 rule alt_t24t0:
@@ -444,7 +444,7 @@ rule alt_t24t0:
         b2 = ','.join(input.t24)
         gtf = GTF
         star_index = STAR_INDEX
-        shell(r'''source activate python2 && RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
+        shell(r'''source activate python2 && python /home/cmb-panasas2/skchoudh/software_frozen/rMATS.3.2.5/RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
 
 rule alt_t24t1:
     input:
@@ -458,7 +458,7 @@ rule alt_t24t1:
         b2 = ','.join(input.t24)
         gtf = GTF
         star_index = STAR_INDEX
-        shell(r'''source activate python2 && RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
+        shell(r'''source activate python2 && python /home/cmb-panasas2/skchoudh/software_frozen/rMATS.3.2.5/RNASeq-MATS.py -b1 {b1} -b2 {b2} -t paired -len 138 -gtf {gtf} -bi {star_index} -o {params.outdir} 1>&2''')
 
 rule rsem_bams:
     input: 'mapped/merged_bams/{sample}.bam'

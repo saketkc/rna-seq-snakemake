@@ -1,0 +1,26 @@
+GENOMES_DIR='/home/cmb-panasas2/skchoudh/genomes'
+#OUT_DIR = '/staging/as/skchoudh/rna/Feb_02_2017_Radiation_GBM/alternative_splicing_cutadapt_trimmed'
+OUT_DIR = '/staging/as/skchoudh/rna/Feb_02_2017_Radiation_GBM_EBV_Sept2017'#/alternative_splicing_cutadapt_trimmed'
+SRC_DIR = '/home/cmb-panasas2/skchoudh/github_projects/clip_seq_pipeline/scripts'
+RAWDATA_DIR ='/home/cmb-06/as/skchoudh/dna/Feb_02_2017_Radiation_GBM'
+GENOME_BUILD = 'hg38'
+GENOME_FASTA = GENOMES_DIR + '/' + GENOME_BUILD + '/fasta/'+ GENOME_BUILD+ '.fa'
+STAR_INDEX = GENOMES_DIR + '/' + GENOME_BUILD + '/star_annotated'
+RSEM_INDEX = GENOMES_DIR + '/' + GENOME_BUILD + '/rsem_index/hg38_rsem'
+
+GTF = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.annotation.gtf'
+GENE_NAMES = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + GENOME_BUILD+'_gene_names_stripped.tsv'
+GENE_LENGTHS = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.coding_lengths.tsv'
+
+GENE_BED = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.annotation.genePred.ssv'
+GENE_BED_TSV = GENOMES_DIR + '/' + GENOME_BUILD + '/annotation/' + 'gencode.v25.annotation.genePred'
+HTSEQ_STRANDED='no'
+FEATURECOUNTS_S=''
+
+HHV4_FASTA = '/home/cmb-panasas2/skchoudh/genomes/hhv4/fasta/ebv.fa'
+HHV4_GTF = '/home/cmb-panasas2/skchoudh/genomes/hhv4/annotation'
+HHV4_STAR_INDEX = '/home/cmb-panasas2/skchoudh/genomes/hhv4/star_annotated'
+
+EBV_FASTA = '/home/cmb-panasas2/skchoudh/genomes/EBV/fasta/chrEBV_Akata_inverted.fa'
+EBV_GTF = '/home/cmb-panasas2/skchoudh/genomes/EBV/annotation/chrEBV_Akata_inverted.gtf'
+EBV_STAR_INDEX = '/home/cmb-panasas2/skchoudh/genomes/EBV/star_annotated'
