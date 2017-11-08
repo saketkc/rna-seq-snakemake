@@ -1,0 +1,68 @@
+include:
+    config['dir_id']
+
+from itertools import chain, combinations
+from os.path import join
+import glob
+import re
+
+CDNA_FA_GZ = ''
+CDNA_IDX = ''
+OUT_DIR = join('', config['dir_id'])
+RAWDATA_DIR = join('', config['dir_id'])
+
+workdir: OUT_DIR
+
+
+SAMPLES = glob.glob('{}**/*.fastq.gz'.format(RAWDATA_DIR), recursive=True)
+SAMPLE_LANE = []
+for sample in SAMPLES:
+    sample = sample.replace('{}/'.format(RAWDATA_DIR),'')
+    sample_name = re.split(r'_L\d\d\d_', sample)[0]
+    lane_name = re.search(r'L\d\d\d', sample).group()
+    SAMPLE_LANE.append((sample_name, lane_name))
+
+SAMPLE_LANE = set(SAMPLE_LANE)
+SAMPLE_LANE = sorted(SAMPLE_LANE, key=lambda tup: tup[0])
+SAMPLE_NAMES, LANE_NAMES = zip(*SAMPLE_LANE)
+
+rule all:
+    input:
+        CDNA_IDX,
+        expand('{sample}/abundance.tsv', sample=SAMPLES)
+
+rule create_index:
+    input: CDNA_FA_GZ
+    output: CDNA_IDX
+    shell:
+        '''kallisto index -i {output} {input}'
+
+rule merge_fastq_R1:
+    input: expand(RAWDATA_DIR+'mapped/bams/{{sample_name}}/{{sample_name}}_{lane}.bam', lane=set(LANE_NAMES))
+    output: 'preprocessed/merged_fastq/{sample_name}_R1.fastq.gz'
+    run:
+        inp = ' '.join(input)
+        shell(r'''zcat {inp} > {output}''')
+
+rule merge_fastq_R2:
+    input: expand(RAWDATA_DIR+'mapped/bams/{{sample_name}}/{{sample_name}}_{lane}.bam', lane=set(LANE_NAMES))
+    output: 'preprocessed/merged_fastq/{sample_name}_R2.fastq.gz'
+    run:
+        inp = ' '.join(input)
+        shell(r'''zcat {inp} > {output}''')
+
+rule quantify:
+    input:
+        R1='preprocessed/merge_fastq/{sample_name}_R1_001.fastq.gz',
+        R2='preprocessed/merge_fastq/{sample_name}_R2_001.fastq.gz'
+    output:
+        'counts/{sample_name}/abundance.tsv',
+    params:
+        index=CDNA_IDX,
+        outdir='counts/{sample_name}'
+    threads: 32
+    shell:
+        r'''
+        kallisto quant --index={params.index} --threads={threads}\
+        --output-dir={params.outdir} -b 100 {input.R1} {input.R2}
+
