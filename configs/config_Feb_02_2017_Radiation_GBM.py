@@ -1,6 +1,6 @@
 GENOMES_DIR='/home/cmb-panasas2/skchoudh/genomes'
 #OUT_DIR = '/staging/as/skchoudh/rna/Feb_02_2017_Radiation_GBM/alternative_splicing_cutadapt_trimmed'
-OUT_DIR = '/staging/as/skchoudh/rna/Feb_02_2017_Radiation_GBM_EBV_Sept2017'#/alternative_splicing_cutadapt_trimmed'
+OUT_DIR = '/staging/as/skchoudh/rna/Feb_02_2017_Radiation_GBM_Alt_Splicing'#/alternative_splicing_cutadapt_trimmed'
 SRC_DIR = '/home/cmb-panasas2/skchoudh/github_projects/clip_seq_pipeline/scripts'
 RAWDATA_DIR ='/home/cmb-06/as/skchoudh/dna/Feb_02_2017_Radiation_GBM'
 GENOME_BUILD = 'hg38'
